@@ -1,0 +1,140 @@
+# Loop Payment Platform - Kamal Deployment Configuration
+service: loop
+
+image: ghcr.io/loop/loop
+
+servers:
+  web:
+    hosts:
+      - 192.168.0.10
+      - 192.168.0.11
+    labels:
+      traefik.http.routers.loop.rule: Host(`api.loop.dev`)
+    options:
+      memory: 2g
+    cmd: node dist/index.js
+
+  worker:
+    hosts:
+      - 192.168.0.20
+    labels:
+      traefik.enable: "false"
+    options:
+      memory: 4g
+    cmd: node dist/worker.js
+
+  dashboard:
+    hosts:
+      - 192.168.0.10
+      - 192.168.0.11
+    labels:
+      traefik.http.routers.dashboard.rule: Host(`dashboard.loop.dev`)
+    options:
+      memory: 1g
+    cmd: node build/index.js
+
+proxy:
+  ssl: true
+  host: api.loop.dev
+  app_port: 3000
+
+registry:
+  server: ghcr.io
+  username: loop
+  password:
+    - KAMAL_REGISTRY_PASSWORD
+
+builder:
+  arch: amd64
+  remote:
+    arch: amd64
+    host: ssh://root@build.loop.dev
+  cache:
+    type: registry
+    options: mode=max
+
+env:
+  clear:
+    NODE_ENV: production
+    TEMPORAL_ADDRESS: 10.0.1.32:7233
+    TEMPORAL_NAMESPACE: loop
+    REDIS_URL: redis://10.0.1.31:6379
+    CORS_ORIGINS: https://dashboard.loop.dev
+  secret:
+    - DATABASE_URL
+    - JWT_SECRET
+    - ENCRYPTION_KEY
+
+ssh:
+  user: deploy
+
+healthcheck:
+  path: /health
+  port: 3000
+  interval: 10s
+  max_attempts: 30
+
+boot:
+  limit: 1
+  wait: 10
+
+accessories:
+  postgres:
+    image: postgres:16-alpine
+    host: 192.168.0.30
+    port: 5432
+    env:
+      clear:
+        POSTGRES_DB: loop
+      secret:
+        - POSTGRES_PASSWORD
+    directories:
+      - data:/var/lib/postgresql/data
+    options:
+      memory: 4g
+      cpus: 2
+
+  redis:
+    image: redis:7-alpine
+    host: 192.168.0.31
+    port: 6379
+    cmd: redis-server --appendonly yes
+    directories:
+      - data:/data
+    options:
+      memory: 2g
+
+  temporal:
+    image: temporalio/auto-setup:1.24
+    host: 192.168.0.32
+    port: 7233
+    env:
+      clear:
+        DB: postgresql
+        DB_PORT: 5432
+        POSTGRES_SEEDS: 10.0.1.30
+      secret:
+        - POSTGRES_USER
+        - POSTGRES_PWD
+    options:
+      memory: 2g
+
+  openobserve:
+    image: public.ecr.aws/zinclabs/openobserve:latest
+    host: 192.168.0.33
+    port: 5080
+    env:
+      clear:
+        ZO_DATA_DIR: /data
+      secret:
+        - ZO_ROOT_USER_EMAIL
+        - ZO_ROOT_USER_PASSWORD
+    directories:
+      - data:/data
+    options:
+      memory: 2g
+
+aliases:
+  shell: app exec --interactive --reuse "bash"
+  logs: app logs -f
+  console: app exec --interactive --reuse "node"

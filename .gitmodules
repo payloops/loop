@@ -1,0 +1,18 @@
+[submodule "dashboard"]
+	path = dashboard
+	url = https://github.com/payloops/dashboard.git
+[submodule "backend"]
+	path = backend
+	url = https://github.com/payloops/backend.git
+[submodule "processor-core"]
+	path = processor-core
+	url = https://github.com/payloops/processor-core.git
+[submodule "processor-stripe"]
+	path = processor-stripe
+	url = https://github.com/payloops/processor-stripe.git
+[submodule "processor-razorpay"]
+	path = processor-razorpay
+	url = https://github.com/payloops/processor-razorpay.git
+[submodule "sdk-ts"]
+	path = sdk-ts
+	url = https://github.com/payloops/sdk-ts.git

@@ -26,8 +26,10 @@ services:
       - POSTGRES_PWD=loop
       - POSTGRES_SEEDS=postgres
       - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
+      - PROMETHEUS_ENDPOINT=0.0.0.0:8000
     ports:
       - "7233:7233"
+      - "8000:8000"
     depends_on:
       postgres:
         condition: service_healthy
@@ -40,6 +42,18 @@ services:
     ports:
       - "8080:8080"
     depends_on:
+      - temporal
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./infrastructure/otel-collector/otel-collector-config.yaml:/etc/otel-collector-config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - openobserve
       - temporal
 
   openobserve:

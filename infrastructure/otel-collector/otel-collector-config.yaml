@@ -1,0 +1,52 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  # Scrape Temporal server Prometheus metrics
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'temporal-server'
+          scrape_interval: 15s
+          static_configs:
+            - targets: ['temporal:8000']
+
+processors:
+  batch:
+    timeout: 10s
+    send_batch_size: 1024
+
+  resource:
+    attributes:
+      - key: service.namespace
+        value: payloops
+        action: upsert
+
+exporters:
+  otlphttp:
+    endpoint: http://openobserve:5080/api/default
+    headers:
+      Authorization: Basic YWRtaW5AbG9vcC5kZXY6YWRtaW4xMjM=
+      stream-name: default
+
+  debug:
+    verbosity: basic
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlphttp, debug]
+    metrics:
+      receivers: [otlp, prometheus]
+      processors: [batch, resource]
+      exporters: [otlphttp, debug]
+    logs:
+      receivers: [otlp]
+      processors: [batch, resource]
+      exporters: [otlphttp, debug]

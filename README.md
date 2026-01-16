@@ -98,7 +98,7 @@ This is a multi-repo project. Each component is maintained separately for indepe
 git clone --recurse-submodules https://github.com/payloops/loop.git
 cd loop
 
-# Start infrastructure (PostgreSQL, Redis, Temporal)
+# Start infrastructure (PostgreSQL, Temporal, OpenObserve, OTel Collector)
 docker-compose up -d
 
 # Terminal 1: Start API server
@@ -119,6 +119,7 @@ cd dashboard && pnpm install && pnpm dev
 | Dashboard | http://localhost:5173 | - |
 | Temporal UI | http://localhost:8080 | - |
 | OpenObserve | http://localhost:5080 | admin@loop.dev / admin123 |
+| OTel Collector | gRPC: 4317, HTTP: 4318 | - |
 
 ## How It Works
 
@@ -138,6 +139,88 @@ Default routing (configurable per merchant):
 INR transactions     →  Razorpay (lower fees for India)
 USD/EUR transactions →  Stripe (better international coverage)
 Fallback             →  Stripe
+```
+
+## Observability
+
+PayLoops uses OpenTelemetry for unified observability with all telemetry data flowing to OpenObserve.
+
+### Architecture
+
+```
+                         OpenObserve (localhost:5080)
+                                  │
+           ┌──────────────────────┼──────────────────────┐
+           │                      │                      │
+       Logs API             OTLP HTTP              OTLP HTTP
+     (5080/api)          (:4318/traces)        (:4318/metrics)
+           │                      │                      │
+           └──────────────────────┼──────────────────────┘
+                                  │
+   ┌──────────────────────────────┴───────────────────────────┐
+   │              OpenTelemetry Collector (:4317/:4318)        │
+   │   - Receives OTLP from apps                              │
+   │   - Scrapes Temporal server Prometheus metrics (:8000)   │
+   │   - Forwards all to OpenObserve                          │
+   └─────────────────────────────┬────────────────────────────┘
+              ▲                  │                  ▲
+              │                  │                  │
+   ┌──────────┴────┐    ┌───────┴───────┐   ┌─────┴────────┐
+   │    Backend    │    │    Temporal   │   │  Processor   │
+   │    (Hono)     │    │    Server     │   │    Core      │
+   │  OTLP push    │    │ Prometheus    │   │  OTLP push   │
+   └───────────────┘    └───────────────┘   └──────────────┘
+```
+
+### What's Collected
+
+| Source | Data Type | Method |
+|--------|-----------|--------|
+| Backend | Traces, Metrics, Logs | Direct OTLP push |
+| Processor-Core | Traces, Metrics, Logs | Direct OTLP push |
+| Temporal Server | Metrics | OTel Collector scrapes Prometheus endpoint |
+
+### Correlation IDs
+
+Every request gets a correlation ID (`X-Correlation-ID` header) that flows through:
+- HTTP requests → API handlers → Temporal workflows → Activities
+
+This enables end-to-end tracing across services:
+
+```bash
+# Make a request with correlation ID
+curl -H "X-Correlation-ID: test-123" http://localhost:3000/health
+
+# Or let the system generate one (returned in response header)
+curl -v http://localhost:3000/health
+```
+
+### Viewing Telemetry
+
+1. Open OpenObserve: http://localhost:5080
+2. Login: `admin@loop.dev` / `admin123`
+3. Navigate to:
+   - **Logs**: Search by `correlationId`, `trace_id`, or service name
+   - **Traces**: View distributed traces across services
+   - **Metrics**: Monitor `temporal_*` metrics, payment counters, latency histograms
+
+### Key Metrics
+
+| Metric | Description |
+|--------|-------------|
+| `payment_attempts_total` | Total payment attempts by processor and status |
+| `payment_amount_total` | Total payment amount processed |
+| `payment_latency_seconds` | Payment processing latency |
+| `webhook_deliveries_total` | Webhook delivery attempts |
+| `temporal_workflow_*` | Temporal workflow execution metrics |
+| `temporal_activity_*` | Temporal activity execution metrics |
+
+### Environment Variables
+
+```bash
+# OpenTelemetry configuration
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_SERVICE_NAME=loop-backend  # or loop-processor-core
 ```
 
 ## SDK Example

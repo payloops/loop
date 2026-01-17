@@ -16,3 +16,6 @@
 [submodule "sdk-ts"]
 	path = sdk-ts
 	url = https://github.com/payloops/sdk-ts.git
+[submodule "backend-worker"]
+	path = backend-worker
+	url = https://github.com/payloops/backend-worker.git

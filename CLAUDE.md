@@ -22,60 +22,105 @@ docker-compose up -d
 |-----------|-------------|------|
 | `dashboard/` | SvelteKit merchant dashboard | 5173 |
 | `backend/` | Hono API server | 3000 |
-| `processor-core/` | Temporal workflows & workers | - |
+| `backend-worker/` | Temporal worker for DB activities | - |
+| `processor-core/` | Temporal workflows & payment types | - |
 | `processor-stripe/` | Stripe processor implementation | - |
 | `processor-razorpay/` | Razorpay processor implementation | - |
+| `observability/` | Shared OpenTelemetry & logging utilities | - |
 | `sdk/` | TypeScript SDK for merchant integration | - |
 | `infrastructure/` | Terraform + Kamal deployment configs | - |
+
+## npm Packages
+
+| Package | Description |
+|---------|-------------|
+| `@payloops/observability` | OpenTelemetry, Pino logger, correlation context |
+| `@payloops/processor-core` | PaymentProcessor interface, workflow types |
+| `@payloops/backend-worker` | DB activities for Temporal workflows |
 
 ## Common Commands
 
 ### Dashboard (SvelteKit)
 ```bash
 cd dashboard
-pnpm install
-pnpm dev          # Start dev server
-pnpm build        # Production build
-pnpm check        # Type check with svelte-check
-pnpm lint         # ESLint
+npm install
+npm run dev          # Start dev server
+npm run build        # Production build
+npm run check        # Type check with svelte-check
+npm run lint         # ESLint
 ```
 
 ### Backend (Hono API)
 ```bash
 cd backend
-pnpm install
-pnpm dev          # Start dev server with hot reload
-pnpm build        # Build with tsup
-pnpm start        # Run production build
-pnpm typecheck    # TypeScript check
-pnpm lint         # ESLint
+npm install
+npm run dev          # Start dev server with hot reload
+npm run build        # Build with tsup
+npm run start        # Run production build
+npm run typecheck    # TypeScript check
+npm run lint         # ESLint
 
 # Database commands (Drizzle)
-pnpm db:generate  # Generate migrations
-pnpm db:migrate   # Run migrations
-pnpm db:push      # Push schema to DB
-pnpm db:studio    # Open Drizzle Studio
+npm run db:generate  # Generate migrations
+npm run db:migrate   # Run migrations
+npm run db:push      # Push schema to DB
+npm run db:studio    # Open Drizzle Studio
 ```
 
-### Processor Core (Temporal Workers)
+### Processor Core
 ```bash
 cd processor-core
-pnpm install
-pnpm dev          # Start worker with hot reload
-pnpm build        # Build library
-pnpm start        # Run production worker
-pnpm typecheck    # TypeScript check
+npm install
+npm run build        # Build library
+npm run typecheck    # TypeScript check
+npm run lint         # ESLint
+npm run release      # Bump patch version, push, create tag
+```
+
+### Observability
+```bash
+cd observability
+npm install
+npm run build        # Build library
+npm run typecheck    # TypeScript check
+npm run lint         # ESLint
+npm run release      # Bump patch version, push, create tag
+```
+
+### Backend Worker
+```bash
+cd backend-worker
+npm install
+npm run dev          # Start worker with hot reload
+npm run build        # Build library
+npm run start        # Run production worker
+npm run typecheck    # TypeScript check
 ```
 
 ### SDK
 ```bash
 cd sdk
-pnpm install
-pnpm build        # Build ESM + CJS
-pnpm dev          # Watch mode
-pnpm test         # Run vitest tests
-pnpm typecheck    # TypeScript check
+npm install
+npm run build        # Build ESM + CJS
+npm run dev          # Watch mode
+npm run test         # Run vitest tests
+npm run typecheck    # TypeScript check
 ```
+
+## CI/CD Workflow
+
+### Release Process (for npm packages)
+1. Run `npm run release` (or `release:minor`, `release:major`)
+   - Builds and typechecks
+   - Bumps version in package.json
+   - Commits and pushes with git tag
+2. Create GitHub release from the tag
+   - This triggers the publish workflow
+   - Package is published to npm
+
+### GitHub Actions
+- **CI** (`ci.yml`): Runs on push/PR to main - typecheck, lint, build
+- **Publish** (`publish.yml`): Runs on GitHub release - publishes to npm
 
 ## Architecture Overview
 
@@ -98,9 +143,20 @@ Create Order -> Route Payment -> Charge -> 3DS (if required) -> Confirm
    - `PaymentWorkflow` - handles full payment lifecycle with 3DS signals
    - `WebhookDeliveryWorkflow` - delivers webhooks with exponential backoff retry
 
-3. **Processor Layer** (`processor-stripe/`, `processor-razorpay/`)
+3. **Backend Worker** (`backend-worker/`)
+   - Temporal worker for DB activities
+   - Cross-queue pattern: processors call backend-operations queue
+   - Activities: `getProcessorConfig`, `updateOrderStatus`, `deliverWebhook`
+
+4. **Processor Layer** (`processor-stripe/`, `processor-razorpay/`)
    - Each implements `PaymentProcessor` interface
    - Auto-registers via `registerProcessor()` pattern
+
+5. **Observability** (`observability/`)
+   - OpenTelemetry SDK initialization
+   - Pino logger with trace context
+   - Correlation context via AsyncLocalStorage
+   - Metrics for payments, webhooks, HTTP, workflows
 
 ### Database Schema (Key Tables)
 - `merchants` - merchant accounts
@@ -122,6 +178,10 @@ Create Order -> Route Payment -> Charge -> 3DS (if required) -> Confirm
 - `processor-core/src/types/index.ts` - PaymentProcessor interface
 - `processor-core/src/lib/registry.ts` - Processor registration
 - `processor-core/src/workflows/payment.ts` - Payment workflow
+- `observability/src/lib/otel.ts` - OpenTelemetry initialization
+- `observability/src/lib/logger.ts` - Pino logger with trace context
+- `observability/src/lib/context.ts` - Correlation context
+- `backend-worker/src/functions/db.ts` - DB activities
 - `sdk/src/client.ts` - SDK HTTP client
 
 ## Environment Variables
@@ -141,6 +201,10 @@ ENCRYPTION_KEY=your-encryption-key-at-least-32-chars
 
 # CORS
 CORS_ORIGINS=http://localhost:5173
+
+# OpenTelemetry (optional)
+OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318
+OTEL_SERVICE_NAME=loop-backend
 ```
 
 ## Adding a New Payment Processor
@@ -167,11 +231,28 @@ export function register() {
 register();
 ```
 
+## Using Observability
+
+```typescript
+import { initTelemetry, logger, withCorrelationContext } from '@payloops/observability';
+
+// Initialize at app startup
+initTelemetry({ serviceName: 'my-service' });
+
+// Logger automatically includes trace context
+logger.info({ orderId: '123' }, 'Processing order');
+
+// Wrap requests with correlation context
+app.use(async (c, next) => {
+  await withCorrelationContext({ correlationId: c.req.header('x-correlation-id') }, next);
+});
+```
+
 ## Tech Stack
 
 - **Frontend**: SvelteKit 5, TailwindCSS 4, TypeScript
 - **API**: Hono, Zod, Drizzle ORM
 - **Workers**: @astami/temporal-functions, Temporal
 - **Database**: PostgreSQL 16, Redis 7
-- **Analytics**: OpenObserve
+- **Observability**: OpenTelemetry, Pino, OpenObserve
 - **Deployment**: Kamal, Terraform (Hetzner)

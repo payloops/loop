@@ -19,3 +19,6 @@
 [submodule "backend-worker"]
 	path = backend-worker
 	url = https://github.com/payloops/backend-worker.git
+[submodule "observability"]
+	path = observability
+	url = https://github.com/payloops/observability.git

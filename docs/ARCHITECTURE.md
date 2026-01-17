@@ -13,7 +13,8 @@ loop/
 ├── processor-core/     → Shared Temporal workflows & activities
 ├── processor-stripe/   → Stripe processor implementation
 ├── processor-razorpay/ → Razorpay processor implementation
-├── sdk/                → TypeScript SDK for merchant integration
+├── observability/      → Shared observability package (@payloops/observability)
+├── backend-worker/     → Backend Temporal worker for DB operations
 └── infrastructure/     → Terraform + Kamal deployment configs
 ```
 
@@ -296,19 +297,15 @@ const defaultRouting: RoutingRule[] = [
 ### Prerequisites
 
 - Node.js 22+
-- pnpm
+- npm
 - Docker & Docker Compose
 
 ### Quick Start
 
 ```bash
-# Clone all repos (or use as monorepo during development)
-git clone https://github.com/loop/dashboard
-git clone https://github.com/loop/backend
-git clone https://github.com/loop/processor-core
-git clone https://github.com/loop/processor-stripe
-git clone https://github.com/loop/processor-razorpay
-git clone https://github.com/loop/sdk
+# Clone with all submodules
+git clone --recurse-submodules https://github.com/payloops/loop.git
+cd loop
 
 # Start infrastructure services
 docker-compose up -d
@@ -323,20 +320,20 @@ docker-compose up -d
 # Run backend
 cd backend
 cp .env.example .env
-pnpm install
-pnpm dev
+npm install
+npm run dev
 
 # Run dashboard (new terminal)
 cd dashboard
 cp .env.example .env
-pnpm install
-pnpm dev
+npm install
+npm run dev
 
 # Run workers (new terminal)
 cd processor-core
 cp .env.example .env
-pnpm install
-pnpm dev
+npm install
+npm run dev
 ```
 
 ### Environment Variables
@@ -406,8 +403,9 @@ register();
 - ✅ Processor-core repo (Temporal workflows)
 - ✅ Processor-stripe repo
 - ✅ Processor-razorpay repo
-- ✅ SDK repo
+- ✅ SDK repo (sdk-ts)
+- ✅ Observability package (@payloops/observability)
 - ✅ Infrastructure (Terraform + Kamal)
 - ✅ Local development setup
-- 🔲 CI/CD pipelines
+- ✅ CI/CD pipelines (GitHub Actions)
 - 🔲 Production deployment

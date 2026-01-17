@@ -88,7 +88,7 @@ This is a multi-repo project. Each component is maintained separately for indepe
 ### Prerequisites
 
 - Node.js 22+
-- pnpm
+- npm
 - Docker & Docker Compose
 
 ### Local Development
@@ -102,13 +102,13 @@ cd loop
 docker-compose up -d
 
 # Terminal 1: Start API server
-cd backend && pnpm install && pnpm dev
+cd backend && npm install && npm dev
 
 # Terminal 2: Start workflow workers
-cd processor-core && pnpm install && pnpm dev
+cd processor-core && npm install && npm dev
 
 # Terminal 3: Start dashboard
-cd dashboard && pnpm install && pnpm dev
+cd dashboard && npm install && npm dev
 ```
 
 ### Services

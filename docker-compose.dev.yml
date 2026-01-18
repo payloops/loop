@@ -1,10 +1,8 @@
 # Development Docker Compose - All services with hot reload
 # Usage: docker-compose -f docker-compose.dev.yml up
 #
-# Uses node:22-alpine base image and mounts source code for hot reload.
+# Uses node:lts base image and mounts source code for hot reload.
 # No separate Dockerfile.dev needed - commands are specified inline.
-
-version: '3.8'
 
 services:
   # =============================================================================
@@ -30,12 +28,11 @@ services:
   temporal:
     image: temporalio/auto-setup:1.24
     environment:
-      - DB=postgresql
+      - DB=postgres12
       - DB_PORT=5432
       - POSTGRES_USER=loop
       - POSTGRES_PWD=loop
       - POSTGRES_SEEDS=postgres
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development.yaml
       - PROMETHEUS_ENDPOINT=0.0.0.0:8000
     ports:
       - "7233:7233"
@@ -82,7 +79,7 @@ services:
   # =============================================================================
 
   backend:
-    image: node:22-alpine
+    image: node:lts
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     ports:
@@ -110,7 +107,7 @@ services:
         condition: service_started
 
   backend-worker:
-    image: node:22-alpine
+    image: node:lts
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     volumes:
@@ -133,7 +130,7 @@ services:
         condition: service_started
 
   processor-stripe:
-    image: node:22-alpine
+    image: node:lts
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     volumes:
@@ -150,7 +147,7 @@ services:
       - otel-collector
 
   processor-razorpay:
-    image: node:22-alpine
+    image: node:lts
     working_dir: /app
     command: sh -c "npm install && npm run dev"
     volumes:
@@ -167,9 +164,9 @@ services:
       - otel-collector
 
   dashboard:
-    image: node:22-alpine
+    image: node:lts
     working_dir: /app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    command: sh -c "npm install --legacy-peer-deps && npm run dev -- --host 0.0.0.0"
     ports:
       - "5173:5173"
     volumes:

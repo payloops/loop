@@ -22,3 +22,6 @@
 [submodule "observability"]
 	path = observability
 	url = https://github.com/payloops/observability.git
+[submodule "temporal-functions"]
+	path = temporal-functions
+	url = https://ninformations@github.com/ninformations/temporal-functions
